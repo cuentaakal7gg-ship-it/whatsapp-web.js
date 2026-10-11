@@ -1,4 +1,4 @@
-'use strict';
+use strict';
 
 const Constants = require('./src/util/Constants');
 
