@@ -1,35 +1,24 @@
-use strict';
+const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys')
+const qrcode = require('qrcode-terminal')
 
-const Constants = require('./src/util/Constants');
-
-module.exports = {
-    Client: require('./src/Client'),
-
-    version: require('./package.json').version,
-
-    // Structures
-    Chat: require('./src/structures/Chat'),
-    PrivateChat: require('./src/structures/PrivateChat'),
-    GroupChat: require('./src/structures/GroupChat'),
-    Channel: require('./src/structures/Channel'),
-    Message: require('./src/structures/Message'),
-    MessageMedia: require('./src/structures/MessageMedia'),
-    Contact: require('./src/structures/Contact'),
-    PrivateContact: require('./src/structures/PrivateContact'),
-    BusinessContact: require('./src/structures/BusinessContact'),
-    ClientInfo: require('./src/structures/ClientInfo'),
-    Location: require('./src/structures/Location'),
-    Poll: require('./src/structures/Poll'),
-    ScheduledEvent: require('./src/structures/ScheduledEvent'),
-    ProductMetadata: require('./src/structures/ProductMetadata'),
-    List: require('./src/structures/List'),
-    Buttons: require('./src/structures/Buttons'),
-    Broadcast: require('./src/structures/Broadcast'),
-
-    // Auth Strategies
-    NoAuth: require('./src/authStrategies/NoAuth'),
-    LocalAuth: require('./src/authStrategies/LocalAuth'),
-    RemoteAuth: require('./src/authStrategies/RemoteAuth'),
-
-    ...Constants,
-};
+async function start() {
+    const { state, saveCreds } = await useMultiFileAuthState('auth')
+    const sock = makeWASocket({ auth: state, printQRInTerminal: true })
+    sock.ev.on('creds.update', saveCreds)
+    sock.ev.on('connection.update', (update) => {
+        const { connection, lastDisconnect } = update
+        if(connection === 'close') {
+            const shouldReconnect = lastDisconnect?.error?.output?.statusCode!== DisconnectReason.loggedOut
+            if(shouldReconnect) start()
+        }
+    })
+    sock.ev.on('messages.upsert', async (m) => {
+        const msg = m.messages[0]
+        if(!msg.message || msg.key.fromMe) return
+        const texto = msg.message.conversation || msg.message.extendedTextMessage?.text || ""
+        if(texto.toLowerCase() === 'hola') {
+            await sock.sendMessage(msg.key.remoteJid, { text: 'Hola! 👋 Bot funcionando!' })
+        }
+    })
+}
+start()
